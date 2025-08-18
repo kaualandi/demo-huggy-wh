@@ -27,6 +27,8 @@ app.get('/', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   const requestData = req.body;
+  console.log(requestData);
+  
 
   if (requestData.messages && requestData.messages.receivedMessage) {
     requestData.messages.receivedMessage.forEach(async (message: any) => {
