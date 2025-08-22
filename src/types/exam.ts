@@ -1,0 +1,61 @@
+export interface Exam {
+	Status: number;
+	ID: number;
+	Title: string;
+	Description: string;
+	ExamType: {
+		ID: number;
+		Name: string;
+		FileType: number;
+		ExpectedMeasurementTypes: any[];
+	};
+	PatientID: number;
+	DateTaken: string;
+	MeasurementCount: number;
+	ExamFileType: number;
+	ExamContentType: number;
+	ExamTypeName: string | null;
+	ReportTranscript: string | null;
+	PartnerID: string | null;
+	ExamFiles: {
+		ID: number;
+		DateCreated: string;
+		ExamID: number;
+		FileMimeType: string;
+		FileType: number;
+		ExamFileType: number;
+		OCRStatus: number;
+		PublicUrl: string;
+		LastDownloadAttempt: string | null;
+		DownloadAttempts: number;
+		Metadata: string;
+		UploadStatus: number;
+	}[];
+	Measurements: {
+		ID: number;
+		DateTaken: string;
+		Side: number;
+		AnatomyElement: any;
+		Type: any;
+		Page: number;
+		Top: number;
+		Left: number;
+		Width: number;
+		Height: number;
+		StringValue: string;
+		DoubleValue: number;
+		DashboardDoubleValue: number | null;
+		Unit: number;
+		OriginType: number;
+		Rectified: boolean;
+		RectifiedMeasurement: any;
+		EHRID: number;
+		ExamID: number;
+		AudioID: number;
+		Label: number;
+		LLMPrompt_ID: string | null;
+	}[];
+	StartPage: number;
+	PatientName: string | null;
+	PossiblePatientDOB: string | null;
+}

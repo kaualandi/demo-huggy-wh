@@ -1,11 +1,14 @@
+require("dotenv").config();
+
 import express from "express";
 import axios from "axios";
 import fs from "fs";
 
 import { assistantContext } from "./context";
+import { voistonApi } from "./config";
+import { Exam } from "./types/exam";
 
 
-require("dotenv").config();
 
 const app = express();
 app.use(express.json());
@@ -52,6 +55,20 @@ app.post('/webhook', async (req, res) => {
 async function manageCalls(chatMessage: string, chatId: string) {
   const monitoredFlow = await variablesChecker(chatId);
   const oldMessages = await getOldMessages(chatId);
+  const exams: Exam[] = await getPatientExamsData(280398);
+  if (!exams.length) {
+    console.log('Nenhum exame encontrado para o paciente.');
+    return;
+  }
+
+  const exam = exams[0];
+  const patientData = `EXEMPLO DE ENTRADA:
+Paciente: ${exam.PatientName}
+Exames: ${exam.Title}
+Resultado: ${exam.ReportTranscript}
+Médico: ${exam.ExamTypeName}
+Data: ${exam.DateTaken}
+  `;
   // save old messages in .json
   fs.writeFileSync(`./${chatId}.json`, JSON.stringify(oldMessages));
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -65,6 +82,10 @@ async function manageCalls(chatMessage: string, chatId: string) {
         {
           role: 'system',
           content: assistantContext,
+        },
+        {
+          role: 'system',
+          content: patientData,
         },
         ...oldMessages.reverse().map((msg: any) => ({
           role: msg.senderType === 'whatsapp-enterprise' ? 'user' : 'assistant',
@@ -149,8 +170,7 @@ async function addMessageInChat(chatMessage: string, chatId: string) {
 
     return true;
   } catch (error: any) {
-
-    console.error('Error sending message:', error.message);
+    console.error('Error sending message:', error.response);
     return false;
   }
 }
@@ -174,6 +194,16 @@ async function getOldMessages(chatId: string) {
   } catch (error: any) {
     console.error('Error fetching old messages:', error.message);
     return [];
+  }
+}
+
+async function getPatientExamsData(patientId: number) {
+  try {
+    const response = await voistonApi.get(`/Exam/List/ByPatient/${patientId}`);
+    return response.data;
+  } catch (error: any) {
+    console.error('Error fetching patient data:', error.message);
+    return null;
   }
 }
 
