@@ -7,6 +7,8 @@ import fs from "fs";
 import { assistantContext } from "./context";
 import { voistonApi } from "./config";
 import { Exam } from "./types/exam";
+import { getConversationStage } from "./templates";
+import { clinicConfig, getPreferredSchedulingSlot } from "./clinic-config";
 
 
 
@@ -26,6 +28,29 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
   res.status(200).json({ status: true });
+});
+
+// Endpoint de teste para simular conversa
+app.post('/test-conversation', async (req, res) => {
+  const { message, chatId = 'test-chat-123' } = req.body;
+  
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+  
+  try {
+    const result = await manageCalls(message, chatId);
+    res.json({ 
+      success: result,
+      message: 'Test conversation completed',
+      chatId 
+    });
+  } catch (error: any) {
+    res.status(500).json({ 
+      error: 'Test failed', 
+      details: error.message 
+    });
+  }
 });
 
 app.post('/webhook', async (req, res) => {
@@ -62,13 +87,42 @@ async function manageCalls(chatMessage: string, chatId: string) {
   }
 
   const exam = exams[0];
-  const patientData = `EXEMPLO DE ENTRADA:
-Paciente: ${exam.PatientName}
-Exames: ${exam.Title}
-Resultado: ${exam.ReportTranscript}
-Médico: ${exam.ExamTypeName}
-Data: ${exam.DateTaken}
-  `;
+  
+  // Obter orientações específicas baseadas no tipo de exame
+  const examGuidance = getExamSpecificGuidance(exam.Title, exam.ReportTranscript || '');
+  
+  // Formatar data do exame
+  const examDate = new Date(exam.DateTaken);
+  const formattedDate = examDate.toLocaleDateString('pt-BR', { 
+    day: '2-digit', 
+    month: 'long'
+  });
+
+  // Estruturar dados do paciente para o contexto
+  const patientData = `DADOS DO PACIENTE E EXAME:
+
+Paciente: ${exam.PatientName || 'Paciente'}
+Exames realizados: ${exam.Title}
+Tipo de exame: ${exam.ExamTypeName || 'Exame oftalmológico'}
+Data dos exames: ${formattedDate}
+Médico responsável: ${clinicConfig.doctors.ophthalmologist.name}
+Resultado/Diagnóstico: ${exam.ReportTranscript || 'Resultado do exame em análise'}
+
+ORIENTAÇÕES MÉDICAS:
+- Período para retorno: ${examGuidance.followUpPeriod}
+- Tipo de acompanhamento: ${examGuidance.urgency}
+- Recomendações: ${examGuidance.recommendations}
+
+AGENDAMENTO DISPONÍVEL (negocie uma data por vez):
+${clinicConfig.availableSlots.map(slot => 
+  `- ${slot.dayOfWeek}, ${slot.date} às ${slot.time}`
+).join('\n')}
+
+EXEMPLO DE CONVERSA IDEAL:
+Seja como o modelo de conversa fornecido - natural, empático, estruturado e eficiente.
+
+INSTRUÇÃO ESPECIAL: Use estes dados para conduzir uma conversa natural e empática, seguindo rigorosamente o protocolo estabelecido.`;
+
   // save old messages in .json
   fs.writeFileSync(`./${chatId}.json`, JSON.stringify(oldMessages));
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -76,6 +130,12 @@ Data: ${exam.DateTaken}
   const gptHeaders = {Authorization: `Bearer ${gptToken}`, 'Content-Type': 'application/json'}
   
   if (monitoredFlow === true) {
+    // Verificar se é a primeira mensagem da conversa
+    const isFirstMessage = oldMessages.length === 0;
+    
+    // Determinar o estágio da conversa baseado na mensagem do paciente
+    const conversationStage = getConversationStage(chatMessage);
+    
     const body = {
       model: gptModel,
       messages: [
@@ -86,6 +146,14 @@ Data: ${exam.DateTaken}
         {
           role: 'system',
           content: patientData,
+        },
+        {
+          role: 'system',
+          content: `CONTEXTO DA CONVERSA: ${isFirstMessage ? 'Esta é a primeira mensagem. Inicie o atendimento seguindo o protocolo.' : 'Conversa em andamento. Continue seguindo o protocolo de atendimento.'}`
+        },
+        {
+          role: 'system',
+          content: conversationStage
         },
         ...oldMessages.reverse().map((msg: any) => ({
           role: msg.senderType === 'whatsapp-enterprise' ? 'user' : 'assistant',
@@ -100,12 +168,29 @@ Data: ${exam.DateTaken}
     try {
       const response = await axios.post(url, body, {headers: gptHeaders});
       let allStepsPerformed = true;
-      const messageAdded = await addMessageInChat(extractMessage(JSON.stringify(response.data)), chatId);
-      // const flowTriggered = flowId ? await triggerFlowMenu(chatId, flowId) : false;
+      const gptMessage = extractMessage(JSON.stringify(response.data));
+      
+      // Verificar se a conversa chegou ao ponto de agendamento confirmado
+      const isConversationComplete = gptMessage.toLowerCase().includes('qualquer coisa, estamos à disposição') ||
+                                    gptMessage.toLowerCase().includes('agradecemos') ||
+                                    gptMessage.toLowerCase().includes('confirmado');
+      
+      const messageAdded = await addMessageInChat(gptMessage, chatId);
+      
+      // Se a conversa foi concluída, salvar estado
+      if (isConversationComplete) {
+        const conversationSummary = {
+          chatId,
+          patientName: exam.PatientName,
+          examType: exam.Title,
+          conversationStatus: 'completed',
+          timestamp: new Date().toISOString()
+        };
+        fs.writeFileSync(`./completed_${chatId}.json`, JSON.stringify(conversationSummary));
+        console.log(`Conversa concluída para o chat ${chatId}`);
+      }
 
-      // messageAdded === false || flowTriggered === false ? allStepsPerformed = false : allStepsPerformed = true;
-
-      return (allStepsPerformed);
+      return allStepsPerformed;
     } catch (error: any) {
       console.error('Error calling GPT:', error.response);
       return false;
@@ -203,8 +288,39 @@ async function getPatientExamsData(patientId: number) {
     return response.data;
   } catch (error: any) {
     console.error('Error fetching patient data:', error.message);
-    return null;
+    return [];
   }
+}
+
+// Função auxiliar para determinar orientações específicas baseadas no tipo de exame
+function getExamSpecificGuidance(examTitle: string, result: string) {
+  const examLower = examTitle.toLowerCase();
+  const resultLower = result?.toLowerCase() || '';
+  
+  if (examLower.includes('oct') || examLower.includes('tomografia')) {
+    if (resultLower.includes('dmri') || resultLower.includes('degeneração macular')) {
+      return {
+        followUpPeriod: 'três meses',
+        urgency: 'preventivo',
+        recommendations: 'suplementação com vitaminas específicas (fórmula AREDS 2) e controle dos fatores de risco'
+      };
+    }
+  }
+  
+  if (examLower.includes('retinografia') || examLower.includes('fundo de olho')) {
+    return {
+      followUpPeriod: 'seis meses',
+      urgency: 'acompanhamento regular',
+      recommendations: 'monitoramento contínuo da saúde retiniana'
+    };
+  }
+  
+  // Padrão genérico
+  return {
+    followUpPeriod: 'três a seis meses',
+    urgency: 'acompanhamento preventivo',
+    recommendations: 'seguimento regular conforme orientação médica'
+  };
 }
 
 /* triggerFlowMenu:
