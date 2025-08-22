@@ -177,10 +177,10 @@ INSTRUÇÃO ESPECIAL: Use estes dados para conduzir uma conversa natural e empá
       const gptMessage = extractMessage(JSON.stringify(response.data));
       
       // Verificar se a conversa chegou ao ponto de agendamento confirmado
-      const isConversationComplete = gptMessage.toLowerCase().includes('qualquer coisa, estamos à disposição') ||
-                                    gptMessage.toLowerCase().includes('agradecemos') ||
-                                    gptMessage.toLowerCase().includes('confirmado');
-      
+      const isConversationComplete = gptMessage?.toLowerCase().includes('qualquer coisa, estamos à disposição') ||
+                                    gptMessage?.toLowerCase().includes('agradecemos') ||
+                                    gptMessage?.toLowerCase().includes('confirmado');
+
       const messageAdded = await addMessageInChat(gptMessage, chatId);
       
       // Se a conversa foi concluída, salvar estado
@@ -223,10 +223,9 @@ async function variablesChecker(chatId: string) {
       }
     );
 
-    const { contextVariables } = response.data;
-    console.log({ contextVariables });
-    
+    const { contextVariables } = response.data;    
     if (contextVariables.nome === 'Kauã Landi') {
+      console.log({ contextVariables });
       return true;
 
     } else {
