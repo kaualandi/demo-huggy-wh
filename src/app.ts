@@ -83,7 +83,7 @@ async function manageCalls(chatMessage: string, chatId: string, data?: unknown) 
     return false;
   }
 
-  console.log('data', data);
+  console.log('data', JSON.stringify(data));
   
   const oldMessages = await getOldMessages(chatId);
   const exams: Exam[] = await getPatientExamsData(280398);
@@ -93,9 +93,6 @@ async function manageCalls(chatMessage: string, chatId: string, data?: unknown) 
   }
 
   const exam = exams[0];
-  
-  // Obter orientações específicas baseadas no tipo de exame
-  const examGuidance = getExamSpecificGuidance(exam.Title, exam.ReportTranscript || '');
   
   // Formatar data do exame
   const examDate = new Date(exam.DateTaken);
@@ -114,20 +111,12 @@ Data dos exames: ${formattedDate}
 Médico responsável: ${clinicConfig.doctors.ophthalmologist.name}
 Resultado/Diagnóstico: ${exam.ReportTranscript || 'Resultado do exame em análise'}
 
-ORIENTAÇÕES MÉDICAS:
-- Período para retorno: ${examGuidance.followUpPeriod}
-- Tipo de acompanhamento: ${examGuidance.urgency}
-- Recomendações: ${examGuidance.recommendations}
-
 AGENDAMENTO DISPONÍVEL (negocie uma data por vez):
 ${clinicConfig.availableSlots.map(slot => 
   `- ${slot.dayOfWeek}, ${slot.date} às ${slot.time}`
 ).join('\n')}
 
-EXEMPLO DE CONVERSA IDEAL:
-Seja como o modelo de conversa fornecido - natural, empático, estruturado e eficiente.
-
-INSTRUÇÃO ESPECIAL: Use estes dados para conduzir uma conversa natural e empática, seguindo rigorosamente o protocolo estabelecido.`;
+INSTRUÇÃO: Use estes dados para conduzir uma conversa natural e empática, seguindo o protocolo estabelecido.`;
 
   // save old messages in .json
   
@@ -295,37 +284,6 @@ async function getPatientExamsData(patientId: number) {
     console.error('Error fetching patient data:', error.message);
     return [];
   }
-}
-
-// Função auxiliar para determinar orientações específicas baseadas no tipo de exame
-function getExamSpecificGuidance(examTitle: string, result: string) {
-  const examLower = examTitle?.toLowerCase();
-  const resultLower = result?.toLowerCase() || '';
-  
-  if (examLower.includes('oct') || examLower.includes('tomografia')) {
-    if (resultLower.includes('dmri') || resultLower.includes('degeneração macular')) {
-      return {
-        followUpPeriod: 'três meses',
-        urgency: 'preventivo',
-        recommendations: 'suplementação com vitaminas específicas (fórmula AREDS 2) e controle dos fatores de risco'
-      };
-    }
-  }
-  
-  if (examLower.includes('retinografia') || examLower.includes('fundo de olho')) {
-    return {
-      followUpPeriod: 'seis meses',
-      urgency: 'acompanhamento regular',
-      recommendations: 'monitoramento contínuo da saúde retiniana'
-    };
-  }
-  
-  // Padrão genérico
-  return {
-    followUpPeriod: 'três a seis meses',
-    urgency: 'acompanhamento preventivo',
-    recommendations: 'seguimento regular conforme orientação médica'
-  };
 }
 
 /* triggerFlowMenu:
