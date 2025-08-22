@@ -129,7 +129,7 @@ Seja como o modelo de conversa fornecido - natural, empático, estruturado e efi
 INSTRUÇÃO ESPECIAL: Use estes dados para conduzir uma conversa natural e empática, seguindo rigorosamente o protocolo estabelecido.`;
 
   // save old messages in .json
-  fs.writeFileSync(`./${chatId}.json`, JSON.stringify(oldMessages));
+  
   const url = 'https://api.openai.com/v1/chat/completions';
   const gptModel = 'gpt-3.5-turbo';
   const gptHeaders = {Authorization: `Bearer ${gptToken}`, 'Content-Type': 'application/json'}
@@ -191,7 +191,7 @@ INSTRUÇÃO ESPECIAL: Use estes dados para conduzir uma conversa natural e empá
           conversationStatus: 'completed',
           timestamp: new Date().toISOString()
         };
-        fs.writeFileSync(`./completed_${chatId}.json`, JSON.stringify(conversationSummary));
+        
         console.log(`Conversa concluída para o chat ${chatId}`);
       }
 
