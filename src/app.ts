@@ -54,13 +54,11 @@ app.post('/test-conversation', async (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-  const requestData = req.body;
-  console.log(requestData);
-  
+  const requestData = req.body;  
 
   if (requestData.messages && requestData.messages.receivedMessage) {
     requestData.messages.receivedMessage.forEach(async (message: any) => {
-      const stepsDone = await manageCalls(message.body, message.chat.id);
+      const stepsDone = await manageCalls(message.body, message.chat.id, requestData);
       stepsDone === false 
         ? res.json(returnStatus('O chat não pertence a um flow mapeado, ou algum processo falhou.')) 
         : res.json(returnStatus('Sucesso na execução.'));
@@ -77,8 +75,15 @@ app.post('/webhook', async (req, res) => {
 - Se todos passos acima forem executados é retornado 'true', caso contrário é retornado 'false'.
  */
 
-async function manageCalls(chatMessage: string, chatId: string) {
+async function manageCalls(chatMessage: string, chatId: string, data?: unknown) {
   const monitoredFlow = await variablesChecker(chatId);
+  if (!monitoredFlow) {
+    console.log('Nenhuma operação será realizada, pois o flow não está mapeado.');
+    return false;
+  }
+
+  console.log('data', data);
+  
   const oldMessages = await getOldMessages(chatId);
   const exams: Exam[] = await getPatientExamsData(280398);
   if (!exams.length) {
