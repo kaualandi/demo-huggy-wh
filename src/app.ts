@@ -300,7 +300,7 @@ async function getPatientExamsData(patientId: number) {
 
 // Função auxiliar para determinar orientações específicas baseadas no tipo de exame
 function getExamSpecificGuidance(examTitle: string, result: string) {
-  const examLower = examTitle.toLowerCase();
+  const examLower = examTitle?.toLowerCase();
   const resultLower = result?.toLowerCase() || '';
   
   if (examLower.includes('oct') || examLower.includes('tomografia')) {
